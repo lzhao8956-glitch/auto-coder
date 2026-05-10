@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AutoCoder - 自然语言生成完整项目代码</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, system-ui, sans-serif; background: #0a0a0f; color: #e0e0e0; min-height: 100vh; }
+.hero { text-align: center; padding: 80px 20px 40px; background: linear-gradient(180deg, #1a1a2e 0%, #0a0a0f 100%); }
+.hero h1 { font-size: 3rem; margin-bottom: 16px; background: linear-gradient(90deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.hero p { font-size: 1.2rem; color: #888; max-width: 600px; margin: 0 auto 40px; }
+.main { max-width: 800px; margin: 0 auto; padding: 0 20px 60px; }
+textarea { width: 100%; height: 120px; background: #16161f; border: 1px solid #333; border-radius: 12px; color: #e0e0e0; padding: 16px; font-size: 1rem; resize: vertical; outline: none; transition: border-color 0.2s; }
+textarea:focus { border-color: #667eea; }
+textarea::placeholder { color: #555; }
+.row { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+select, input { background: #16161f; border: 1px solid #333; border-radius: 8px; color: #e0e0e0; padding: 12px 16px; font-size: 0.95rem; outline: none; }
+select { cursor: pointer; flex: 1; min-width: 150px; }
+input { flex: 2; min-width: 200px; }
+.btn { background: linear-gradient(135deg, #667eea, #764ba2); border: none; border-radius: 8px; color: white; padding: 14px 32px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
+.btn:hover { opacity: 0.9; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.result { margin-top: 40px; background: #16161f; border-radius: 12px; padding: 24px; display: none; }
+.result.show { display: block; }
+.score { display: inline-block; padding: 6px 16px; border-radius: 20px; font-weight: 600; margin-bottom: 16px; }
+.score.high { background: #1a4d1a; color: #4ade80; }
+.score.medium { background: #4d3d1a; color: #fbbf24; }
+.score.low { background: #4d1a1a; color: #f87171; }
+.file-list { margin-top: 16px; }
+.file-item { background: #1e1e28; padding: 12px 16px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+.file-item span { font-family: monospace; color: #a5b4fc; }
+.github-link { display: inline-block; margin-top: 20px; padding: 12px 24px; background: #1a4d1a; border-radius: 8px; color: #4ade80; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="hero">
+  <h1>🤖 AutoCoder</h1>
+  <p>用自然语言描述需求，5秒生成完整可运行项目代码。Python / JavaScript / HTML / Go / Rust</p>
+</div>
+<div class="main">
+  <textarea id="description" placeholder="描述你想要的项目，例如：&#10;一个股票行情看板，实时显示A股数据，支持自选股和K线图&#10;一个待办事项App，支持分类、标签、提醒和导出CSV"></textarea>
+  <div class="row">
+    <select id="language">
+      <option value="python">Python</option>
+      <option value="javascript">JavaScript</option>
+      <option value="html">HTML</option>
+      <option value="go">Go</option>
+      <option value="rust">Rust</option>
+    </select>
+    <select id="framework">
+      <option value="">不指定框架</option>
+    </select>
+    <input type="text" id="github" placeholder="GitHub仓库名 (username/repo，可选)">
+  </div>
+  <div class="row" style="margin-top:16px">
+    <button class="btn" id="generateBtn" onclick="generate()">🚀 生成代码</button>
+  </div>
+  <div class="result" id="result">
+    <div class="score" id="score"></div>
+    <div id="fileList" class="file-list"></div>
+    <a class="github-link" id="githubLink" href="#" target="_blank" style="display:none"></a>
+  </div>
+</div>
+<script>
+const frameworks = {
+  python: {"": "不指定框架", flask: "Flask", fastapi: "FastAPI", streamlit: "Streamlit", gradio: "Gradio"},
+  javascript: {"": "不指定框架", react: "React + Vite", vue: "Vue 3 + Vite", express: "Express.js"},
+  html: {"": "不指定框架", bootstrap: "Bootstrap 5", tailwind: "TailwindCSS"},
+  go: {"": "不指定框架", gin: "Gin", echo: "Echo", fiber: "Fiber"},
+  rust: {"": "不指定框架", actix: "Actix", axum: "Axum"}
+};
+document.getElementById("language").onchange = function() {
+  const sel = document.getElementById("framework");
+  sel.innerHTML = "";
+  const fw = frameworks[this.value] || {};
+  for (const [k, v] of Object.entries(fw)) sel.innerHTML += `<option value="${k}">${v}</option>`;
+};
+async function generate() {
+  const btn = document.getElementById("generateBtn");
+  btn.disabled = true;
+  btn.textContent = "⏳ 生成中...";
+  const res = document.getElementById("result");
+  res.classList.remove("show");
+  try {
+    const r = await fetch("/generate", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        description: document.getElementById("description").value,
+        language: document.getElementById("language").value,
+        framework: document.getElementById("framework").value,
+        github_repo: document.getElementById("github").value
+      })
+    });
+    const data = await r.json();
+    const score = data.quality_score || 0;
+    const scoreEl = document.getElementById("score");
+    scoreEl.textContent = `质量评分: ${score}/100`;
+    scoreEl.className = "score " + (score >= 70 ? "high" : score >= 40 ? "medium" : "low");
+    const fileList = document.getElementById("fileList");
+    fileList.innerHTML = (data.files || []).map(f => `<div class="file-item"><span>${f.name}</span><span style="color:#888">${f.path || ""}</span></div>`).join("");
+    const link = document.getElementById("githubLink");
+    if (data.github_url) { link.href = data.github_url; link.textContent = "👉 " + data.github_url; link.style.display = "inline-block"; }
+    res.classList.add("show");
+  } catch(e) { alert("生成失败: " + e.message); }
+  btn.disabled = false; btn.textContent = "🚀 生成代码";
+}
+</script>
+</body>
+</html>
